@@ -60,6 +60,19 @@ async function startGame() {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
+    // MUST create data channel BEFORE creating the offer to negotiate it in SDP
+    const dataChannel = peerConnection.createDataChannel("pipecat");
+    dataChannel.onmessage = (evt) => {
+      try {
+        const message = JSON.parse(evt.data);
+        handleBotMessage(message);
+      } catch (e) {
+        console.log("Data channel message (raw):", evt.data);
+      }
+    };
+    dataChannel.onopen = () => console.log("Local data channel opened");
+    dataChannel.onclose = () => console.log("Local data channel closed");
+
     // Handle incoming audio tracks from the bot
     peerConnection.ontrack = (event) => {
       console.log("Received remote track:", event.track.kind);

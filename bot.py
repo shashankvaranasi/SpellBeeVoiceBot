@@ -102,11 +102,11 @@ async def run_bot(transport, runner_args: RunnerArguments):
     # Helper to send messages to the frontend via data channel.
     # The SmallWebRTCTransport doesn't expose send_message directly,
     # so we access the connection via the transport's internal client.
-    def send_to_frontend(data: dict):
+    async def send_to_frontend(data: dict):
         """Send a JSON message to the frontend via WebRTC data channel."""
         try:
             # The client itself is a Datachannel interface in the new Small WebRTC
-            transport._client.send_message(
+            await transport._client.send_message(
                 OutputTransportMessageFrame(data)
             )
         except Exception as e:
@@ -133,7 +133,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
     # ─── LLM (Google Gemini) ───────────────────────────────────
     llm = GoogleLLMService(
         api_key=GOOGLE_API_KEY,
-        settings=GoogleLLMService.Settings(model="gemini-2.5-flash-lite")
+        settings=GoogleLLMService.Settings(model="gemma-4-31b-it")
     )
 
     # ─── Game State ────────────────────────────────────────────
@@ -159,7 +159,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
         # Send game state update to frontend via data channel
         game_state = game.get_game_state()
         game_state["event"] = "new_word"
-        send_to_frontend(game_state)
+        await send_to_frontend(game_state)
 
         # Return word info to LLM so it can present it naturally
         await params.result_callback(
@@ -178,7 +178,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
         game_state = game.get_game_state()
         game_state["event"] = "spelling_result"
         game_state["last_result"] = result
-        send_to_frontend(game_state)
+        await send_to_frontend(game_state)
 
         if result.get("correct"):
             response = (
@@ -203,7 +203,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
     async def handle_get_score(params):
         """Return the current game score."""
         state = game.get_game_state()
-        send_to_frontend(state)
+        await send_to_frontend(state)
 
         await params.result_callback(
             f"Score: {state['score']} points. "
@@ -217,7 +217,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
         summary = game.end_game()
 
         # Send game over state to frontend
-        send_to_frontend(summary)
+        await send_to_frontend(summary)
 
         await params.result_callback(
             f"GAME OVER! Final results: "
@@ -260,7 +260,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
     async def on_client_connected(transport, client):
         logger.info(f"Client connected")
         # Send initial game state to frontend
-        send_to_frontend(game.get_game_state())
+        await send_to_frontend(game.get_game_state())
         # Kick off the conversation — LLM will welcome user and present first word
         await task.queue_frames([LLMContextFrame(context)])
 
