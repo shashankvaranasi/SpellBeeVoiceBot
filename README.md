@@ -36,7 +36,7 @@ Browser (WebRTC) ←→ SmallWebRTCTransport ←→ Pipecat Pipeline
 | Voice Pipeline | [Pipecat](https://github.com/pipecat-ai/pipecat) |
 | Speech-to-Text | Deepgram (Nova-2) |
 | Text-to-Speech | Deepgram (Aura) |
-| LLM | Google Gemini 2.0 Flash |
+| LLM | Google Gemini Gemma 4 or  Gemini 2.5 Flash/Flash Lite |
 | Transport | SmallWebRTC (peer-to-peer) |
 | Frontend | Vanilla HTML/CSS/JS |
 
