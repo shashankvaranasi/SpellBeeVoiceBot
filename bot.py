@@ -27,7 +27,9 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext, ToolsSchema
-from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
+from pipecat.processors.aggregators.llm_response_universal import (
+    LLMContextAggregatorPair,
+)
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.services.google.llm import GoogleLLMService
@@ -78,19 +80,24 @@ When the user connects, welcome them warmly, briefly explain the rules (you'll s
 
 
 # ─── Transport Parameters ──────────────────────────────────────
-# These are used by the Pipecat runner to create the appropriate transport.
-# We use lambdas to defer creation until the transport type is selected.
+# These are used by the WebRTC transport to manage audio sensitivity.
 transport_params = {
     "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
         audio_out_enabled=True,
         audio_in_sample_rate=16000,
         audio_out_sample_rate=16000,
-        vad_analyzer=SileroVADAnalyzer(params=VADParams(
-            start_secs=0.9,     # require almost 1 full second of continuous speech to interrupt
-            stop_secs=1.5,
-            min_volume=0.8      # extremely high volume threshold
-        )),
+        vad_analyzer=SileroVADAnalyzer(
+            params=VADParams(
+                # start_secs: How long the user must speak before the bot interrupts.
+                # We use 0.15s to catch quick letters in a Spelling Bee.
+                start_secs=0.15, 
+                # stop_secs: How long of a silence before the bot considers you finished.
+                stop_secs=1.2,  
+                # min_volume: Sensitivity threshold (0.0 to 1.0).
+                min_volume=0.1,  
+            )
+        ),
     ),
 }
 
@@ -106,9 +113,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
         """Send a JSON message to the frontend via WebRTC data channel."""
         try:
             # The client itself is a Datachannel interface in the new Small WebRTC
-            await transport._client.send_message(
-                OutputTransportMessageFrame(data)
-            )
+            await transport._client.send_message(OutputTransportMessageFrame(data))
         except Exception as e:
             logger.warning(f"Could not send message to frontend: {e}")
 
@@ -117,8 +122,9 @@ async def run_bot(transport, runner_args: RunnerArguments):
         api_key=DEEPGRAM_API_KEY,
         settings=DeepgramSTTService.Settings(
             language="en",
-            model="nova-2",
-            smart_format=True,
+            model="nova-3",
+            smart_format=False,
+            punctuate=False,
         ),
     )
 
@@ -133,7 +139,7 @@ async def run_bot(transport, runner_args: RunnerArguments):
     # ─── LLM (Google Gemini) ───────────────────────────────────
     llm = GoogleLLMService(
         api_key=GOOGLE_API_KEY,
-        settings=GoogleLLMService.Settings(model="gemma-4-31b-it")
+        settings=GoogleLLMService.Settings(model="gemma-4-31b-it"),
     )
 
     # ─── Game State ────────────────────────────────────────────
@@ -146,7 +152,9 @@ async def run_bot(transport, runner_args: RunnerArguments):
 
     context = LLMContext(
         messages=messages,
-        tools=ToolsSchema(standard_tools=[], custom_tools={AdapterType.GEMINI: SPELL_BEE_TOOLS})
+        tools=ToolsSchema(
+            standard_tools=[], custom_tools={AdapterType.GEMINI: SPELL_BEE_TOOLS}
+        ),
     )
     context_aggregator = LLMContextAggregatorPair(context=context)
 
@@ -232,16 +240,17 @@ async def run_bot(transport, runner_args: RunnerArguments):
     llm.register_function("get_current_score", handle_get_score)
     llm.register_function("end_spell_bee_game", handle_end_game)
 
-    # ─── Pipeline ──────────────────────────────────────────────
+    # ─── Pipeline Definition ──────────────────────────────────
+    # This is the "Assembly Line" that processes every frame of audio/text.
     pipeline = Pipeline(
         [
-            transport.input(),               # Audio from user's browser
-            stt,                              # Speech → Text
-            context_aggregator.user(),        # Collect user responses
-            llm,                              # Gemini processes + function calls
-            tts,                              # Text → Speech
-            transport.output(),               # Audio back to user's browser
-            context_aggregator.assistant(),   # Track assistant responses
+            transport.input(),               # 1. Grabs Mic Audio from browser
+            stt,                             # 2. Transcribes Audio -> Text
+            context_aggregator.user(),       # 3. Buffers the text for Gemini
+            llm,                             # 4. The Brain (Gemini handles the logic)
+            tts,                             # 5. Generates human voice back
+            transport.output(),              # 6. Streams Voice + Data to browser
+            context_aggregator.assistant(),  # 7. Tracks the bot's own context
         ]
     )
 

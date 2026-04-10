@@ -58,7 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the SmallWebRTC request handler
+# ─── WebRTC Handlers ──────────────────────────────────────────
+# We use SmallWebRTC to handle peer-to-peer audio directly in Python.
+# This handler manages the complexity of the WebRTC protocol for us.
 small_webrtc_handler = SmallWebRTCRequestHandler(host="0.0.0.0")
 
 # ─── Serve Custom Frontend ────────────────────────────────────
@@ -101,7 +103,11 @@ async def offer(request: SmallWebRTCRequest, background_tasks: BackgroundTasks):
     from pipecat.runner.types import SmallWebRTCRunnerArguments
 
     async def webrtc_connection_callback(connection: SmallWebRTCConnection):
-        """Called when the WebRTC connection is established."""
+        """
+        INTERNAL HANDSHAKE:
+        This is called once the browser and server have agreed on how 
+        to send audio. We then launch the actual Pipecat bot!
+        """
         runner_args = SmallWebRTCRunnerArguments(
             webrtc_connection=connection,
             body=request.request_data,

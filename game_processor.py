@@ -46,7 +46,9 @@ class SpellBeeGame:
         self._pool_index += 1
 
         # Skip already used words
-        while word_info["word"] in self.used_words and self._pool_index < len(self._word_pool):
+        while word_info["word"] in self.used_words and self._pool_index < len(
+            self._word_pool
+        ):
             word_info = self._word_pool[self._pool_index]
             self._pool_index += 1
 
@@ -73,7 +75,13 @@ class SpellBeeGame:
             return {"error": "No word is currently active"}
 
         # Normalize: remove spaces, dashes, dots, and convert to uppercase
-        cleaned = user_spelling.upper().replace(" ", "").replace("-", "").replace(".", "").replace(",", "")
+        cleaned = (
+            user_spelling.upper()
+            .replace(" ", "")
+            .replace("-", "")
+            .replace(".", "")
+            .replace(",", "")
+        )
 
         is_correct = cleaned == self.current_word
 
@@ -94,11 +102,13 @@ class SpellBeeGame:
             "total_words": self.total_words,
         }
 
-        self.word_history.append({
-            "word": self.current_word_info["word"],
-            "correct": is_correct,
-            "user_answer": cleaned,
-        })
+        self.word_history.append(
+            {
+                "word": self.current_word_info["word"],
+                "correct": is_correct,
+                "user_answer": cleaned,
+            }
+        )
 
         logger.info(
             f"Spelling check: expected={self.current_word}, "
@@ -108,7 +118,10 @@ class SpellBeeGame:
         return result
 
     def get_game_state(self) -> dict:
-        """Get the current game state for frontend display."""
+        """
+        Gathers all relevant game data to send to the Browser.
+        This dictionary is what turns into the JSON updates for the UI.
+        """
         return {
             "type": "game_state",
             "score": self.score,
@@ -116,8 +129,12 @@ class SpellBeeGame:
             "incorrect_count": self.incorrect_count,
             "total_words": self.total_words,
             "max_words": self.max_words,
-            "current_word": self.current_word_info["word"] if self.current_word_info else None,
-            "difficulty": self.current_word_info["difficulty"] if self.current_word_info else None,
+            "current_word": self.current_word_info["word"]
+            if self.current_word_info
+            else None,
+            "difficulty": self.current_word_info["difficulty"]
+            if self.current_word_info
+            else None,
             "game_active": self.game_active,
             "word_history": self.word_history,
         }
@@ -127,9 +144,7 @@ class SpellBeeGame:
         self.game_active = False
 
         percentage = (
-            (self.correct_count / self.total_words * 100)
-            if self.total_words > 0
-            else 0
+            (self.correct_count / self.total_words * 100) if self.total_words > 0 else 0
         )
 
         summary = {
@@ -142,7 +157,9 @@ class SpellBeeGame:
             "word_history": self.word_history,
         }
 
-        logger.info(f"Game ended: {self.correct_count}/{self.total_words} correct ({percentage:.1f}%)")
+        logger.info(
+            f"Game ended: {self.correct_count}/{self.total_words} correct ({percentage:.1f}%)"
+        )
 
         return summary
 
